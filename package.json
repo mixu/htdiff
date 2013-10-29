@@ -1,0 +1,17 @@
+{
+  "name": "htdiff",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": "",
+  "author": "Mikito Takada <mikito.takada@gmail.com> (http://mixu.net/)",
+  "license": "BSD",
+  "readmeFilename": "readme.md",
+  "gitHead": "3a0594007c6746757f2b3113c4aa1e63e9a1e627",
+  "dependencies": {
+    "htmlparser2": "~3.3.0"
+  }
+}

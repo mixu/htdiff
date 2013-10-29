@@ -1,9 +1,47 @@
+// based on spec in React
+// https://github.com/vjeux/react/blob/566fcc9a93223ecb7624a6459faa21e0fc8f31f3/docs/docs/08-diff-algorithm.md
 
-function diff(current, expected) {
+function getAttrs(current) {
+  var excluded = { 'type': true, 'children': true };
+  // text nodes
+  if(current.type == 'text') {
+    return [ 'data' ];
+  }
+  // tags
+  if(!current.attribs) {
+    return [];
+  }
+  return Object.keys(current.attribs).filter(function(k) { return !excluded[k]; }).sort();
+}
+
+function getAttr(current, key) {
+  // assume default type is tag
+  if(current.attribs && current.attribs[key]) {
+    return current.attribs[key];
+  }
+  return current[key];
+}
+
+function getType(current) {
+  if(current.type == 'tag') {
+    return current.name;
+  }
+  return current.type;
+}
+
+function diff(parent, current, expected) {
   var ops = [];
+  // if both are arrays
+  if(Array.isArray(current) && Array.isArray(expected)) {
+    return listDiff(parent, current, expected);
+  }
+
+  if(!current && expected) {
+    return [ { op: 'insert', t: parent, value: expected } ]
+  }
   // A, B different types => remove A, insert B
-  if(current.type != expected.type) {
-    return [ { op: 'remove', t: current }, { op: 'insert', t: expected } ]
+  if(getType(current) != getType(expected)) {
+    return [ { op: 'remove', t: parent, value: current }, { op: 'insert', t: parent, value: expected } ]
   }
 
   // A, B same type => diff attributes, generate (remove|add|replace operations)
@@ -13,16 +51,15 @@ function diff(current, expected) {
   // A, B lists:
   //  a1, b1 equal => nop
   //  a1, b1 different => update while both exist, insert if b1 missing, remove if b1 superfluous
-    ops.push(listDiff(current.children, expected.children));
+    ops = ops.concat(listDiff(current, current.children, expected.children));
   }
   return ops;
 }
 
 function attrDiff(current, expected) {
-  var excluded = { 'type': true, 'children': true },
+  var aKeys = getAttrs(current),
+      bKeys = getAttrs(expected),
       ops = [],
-      aKeys = Object.keys(current).filter(function(k) { return !excluded[k]; }).sort(),
-      bKeys = Object.keys(expected).filter(function(k) { return !excluded[k]; }).sort(),
       i,
       inter = [],
       prevIndex = 0;
@@ -38,7 +75,7 @@ function attrDiff(current, expected) {
       prevIndex = index;
     } else {
       // only in a
-      ops.push({ op: 'remove', key: search });
+      ops.push({ op: 'removeAttr', t: current, key: search });
     }
   }
   prevIndex = 0;
@@ -49,25 +86,32 @@ function attrDiff(current, expected) {
     if(index > -1) {
       prevIndex = index;
     } else {
-      ops.push({ op: 'insert', key: k, value: expected[k] });
+      ops.push({ op: 'addAttr', t: current, key: k, value: getAttr(expected, k) });
     }
   }
 
   inter.forEach(function(k) {
-    if(expected[k] != current[k]) {
-      ops.push({ op: 'replace', key: k, value: expected[k] });
+    if(getAttr(expected, k) != getAttr(current, k)) {
+      ops.push({ op: 'replaceAttr', t: current, key: k, value: getAttr(expected, k) });
     }
   });
 
   return ops;
 }
 
-function listDiff(current, expected) {
+function listDiff(parent, currentArr, expectedArr) {
+  var i = 0, ops = [];
 
+  // compare all expected with current
+  for(; i < expectedArr.length; i++) {
+    var current = currentArr[i],
+        expected = expectedArr[i];
+
+    ops = ops.concat(diff(parent, current, expected));
+  }
+  return ops;
 }
 
-console.log(diff({ type: 'A'}, { type: 'B' }));
+module.exports = diff;
 
-console.log(attrDiff({ a: 'a', b: 'b', c: 'c', d: 'd' }, { b: 'b', c: '!' }));
-
-console.log(diff({ type: 'A', a: 'a', b: 'b'}, { type: 'A',  b: '!' }));
+module.exports.attrDiff = attrDiff;
