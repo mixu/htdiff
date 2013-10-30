@@ -32,20 +32,24 @@ function getType(current) {
 function diff(parent, current, expected) {
   var ops = [];
   // if both are arrays
-  if(Array.isArray(current) && Array.isArray(expected)) {
-    return listDiff(parent, current, expected);
+  if(Array.isArray(current)) {
+    if(current.length == 1) {
+      current = current[0];
+    } else {
+      throw new Error('Must pass two nodes!');
+    }
   }
-
-  if(!current && expected) {
-    return [ { op: 'insert', t: parent, value: expected } ]
+  if(Array.isArray(expected)) {
+    if(expected.length == 1) {
+      expected = expected[0];
+    } else {
+      throw new Error('Must pass two nodes!');
+    }
   }
-  // A, B different types => remove A, insert B
-  if(getType(current) != getType(expected)) {
-    return [ { op: 'remove', t: parent, value: current }, { op: 'insert', t: parent, value: expected } ]
+  if(!current || !expected) {
+    throw new Error('Must pass two nodes!');
+    return;
   }
-
-  // A, B same type => diff attributes, generate (remove|add|replace operations)
-  ops = ops.concat(attrDiff(current, expected));
 
   if(expected.children) {
   // A, B lists:
@@ -53,6 +57,10 @@ function diff(parent, current, expected) {
   //  a1, b1 different => update while both exist, insert if b1 missing, remove if b1 superfluous
     ops = ops.concat(listDiff(current, current.children, expected.children));
   }
+
+  // A, B same type => diff attributes, generate (remove|add|replace operations)
+  ops = ops.concat(attrDiff(current, expected));
+
   return ops;
 }
 
@@ -86,7 +94,7 @@ function attrDiff(current, expected) {
     if(index > -1) {
       prevIndex = index;
     } else {
-      ops.push({ op: 'addAttr', t: current, key: k, value: getAttr(expected, k) });
+      ops.push({ op: 'addAttr', t: current, key: search, value: getAttr(expected, search) });
     }
   }
 
@@ -107,8 +115,28 @@ function listDiff(parent, currentArr, expectedArr) {
     var current = currentArr[i],
         expected = expectedArr[i];
 
+    // current not set
+    if(!current) {
+      ops.push({ op: 'insert', t: parent, index: i, value: expected });
+      continue;
+    }
+
+  // A, B different types => remove A, insert B
+    if(getType(current) != getType(expected)) {
+      ops.push({ op: 'remove', t: parent, index: i, value: current }, { op: 'insert', t: parent, index: i, value: expected });
+      continue;
+    }
+
     ops = ops.concat(diff(parent, current, expected));
   }
+
+  // current has more nodes than expected?
+  if(currentArr.length > expectedArr.length) {
+    for(i = expectedArr.length; i < currentArr.length; i++) {
+      ops.push({ op: 'remove', t: parent, index: i, value: currentArr[i] });
+    }
+  }
+
   return ops;
 }
 
